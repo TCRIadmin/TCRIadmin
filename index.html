@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>DONNIE_OS // TCRI_HACK</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+        body {
+            background-color: #050505;
+            color: #39FF14;
+            font-family: 'VT323', monospace;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* --- ÉCRAN DE BOOT RÉTRO TCRI --- */
+        #pre-boot-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #000;
+            z-index: 80;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow: hidden;
+            /* Transition retirée pour un passage sec (cut) */
+        }
+
+        #boot-logo {
+            color: #FF3333;
+            text-shadow: 0 0 10px #FF3333;
+            font-size: 24px;
+            white-space: pre;
+            margin-bottom: 20px;
+            line-height: 1.1;
+        }
+
+        #boot-console {
+            color: #39FF14;
+            font-size: 20px;
+            display: flex;
+            flex-direction: column;
+            line-height: 1.2;
+            word-break: break-all;
+        }
+
+        /* --- UI PRINCIPALE --- */
+        #main-wrapper {
+            display: none; /* Masqué au départ, affiché après le boot */
+            flex-direction: column;
+            width: 100%;
+            max-width: 800px;
+            height: 100%;
+            max-height: 900px;
+            padding: 10px;
+            box-sizing: border-box;
+            position: relative;
+            z-index: 10;
+        }
+
+        /* Top HUD */
+        #hud-top {
+            display: flex;
+            justify-content: space-between;
+            font-size: 22px;
+            margin-bottom: 10px;
+            text-shadow: 0 0 5px #39FF14;
+            flex-shrink: 0;
+        }
+
+        #error-display { color: #FF3333; text-shadow: 0 0 5px #FF3333; visibility: hidden; }
+        #time-display { visibility: hidden; }
+
+        /* Strict Game Area */
+        #game-container {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            background-color: #000;
+            border: 2px solid #B026FF;
+            box-shadow: 0 0 15px rgba(176, 38, 255, 0.3);
+            overflow: hidden;
+        }
+
+        #password-display {
+            font-size: 42px;
+            letter-spacing: 6px;
+            text-align: center;
+            word-break: break-all;
+            padding: 20px;
+            text-shadow: 0 0 10px #39FF14, 0 0 20px #39FF14;
+            color: #39FF14;
+            z-index: 5;
+        }
+
+        .char-hidden {
+            color: #1a551a;
+            text-shadow: none;
+        }
+
+        /* Animation de succès (Phase 3) - SANS ZOOM */
+        @keyframes unlock-flash {
+            0%, 20%, 40%, 60% { color: #FFFFFF; text-shadow: 0 0 30px #FFFFFF, 0 0 50px #39FF14; opacity: 1; }
+            10%, 30%, 50% { opacity: 0; }
+            100% { color: #39FF14; text-shadow: 0 0 20px #39FF14, 0 0 40px #39FF14, 0 0 60px #39FF14; opacity: 1; }
+        }
+
+        .password-unlocked {
+            animation: unlock-flash 1.5s ease-out forwards;
+        }
+
+        /* Bottom HUD */
+        #hud-bottom {
+            display: flex;
+            flex-direction: column;
+            margin-top: 10px;
+            border-top: 1px dashed #B026FF;
+            padding-top: 10px;
+            flex-grow: 1;
+            overflow: hidden;
+        }
+
+        #pos-display {
+            font-size: 20px;
+            color: #B026FF;
+            margin-bottom: 5px;
+            visibility: hidden;
+        }
+
+        #net-logs-container {
+            flex-grow: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            font-size: 16px;
+            color: #1a551a;
+            line-height: 1.1;
+        }
+
+        /* UI Overlays */
+        #ui-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        .screen {
+            background: rgba(0, 0, 0, 0.95);
+            border: 2px solid #B026FF;
+            padding: 20px;
+            text-align: left;
+            pointer-events: auto;
+            width: 85%;
+            max-height: 90%;
+            overflow-y: auto;
+            box-shadow: 0 0 20px rgba(176, 38, 255, 0.4);
+            box-sizing: border-box;
+        }
+
+        h1.clean-title { 
+            margin: 0 0 5px 0; 
+            font-size: 48px; 
+            color: #B026FF; 
+            text-shadow: 0 0 10px #B026FF;
+            letter-spacing: 2px;
+            text-align: center;
+        }
+        
+        p { font-size: 18px; line-height: 1.3; margin: 10px 0; }
+        
+        #boot-text {
+            color: #aaa;
+            white-space: pre-wrap;
+            min-height: 160px;
+        }
+
+        #boot-text::first-line {
+            color: #FF3333;
+            text-shadow: 0 0 5px rgba(255, 51, 51, 0.8);
+        }
+
+        button {
+            background: #000;
+            color: #B026FF;
+            border: 1px solid #B026FF;
+            font-family: 'VT323', monospace;
+            font-size: 24px;
+            padding: 10px 20px;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: all 0.2s;
+            display: block;
+            width: 100%;
+        }
+        
+        button:hover { background: #B026FF; color: #000; }
+
+        #start-btn { color: #39FF14; border-color: #39FF14; }
+        #start-btn:hover { background: #39FF14; color: #000; }
+
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+        .blinking { animation: blink 1s step-end infinite; }
+
+        /* Lockout Screen */
+        #lockout-screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 0, 0, 0.2);
+            border: 2px solid #FF3333;
+            color: #FF3333;
+            text-align: center;
+            padding: 30px;
+            box-shadow: inset 0 0 50px rgba(255, 0, 0, 0.5);
+        }
+        #lockout-screen h2 { font-size: 50px; margin: 0; text-shadow: 0 0 20px #FF3333; }
+        #lockout-timer { font-size: 80px; margin: 10px 0; font-weight: bold; text-shadow: 0 0 20px #FF3333; }
+
+        /* --- VIBRATION CRT --- */
+        .scanline {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 3px 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        #sweep-flare {
+            position: fixed;
+            top: -30vh; left: 0; width: 100vw; height: 30vh;
+            pointer-events: none; z-index: 95; opacity: 0.2; 
+            transition: opacity 0.5s ease;
+            backdrop-filter: url(#cross-glow);
+            mix-blend-mode: screen;
+            mask-image: linear-gradient(to bottom, transparent 0%, black 50%, transparent 100%);
+            animation: sweep-flare-anim 6s linear infinite;
+        }
+
+        @keyframes sweep-flare-anim {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(130vh); }
+        }
+        
+        #keyboard-hint { position: absolute; bottom: 10px; color: #fff; opacity: 0.5; font-size: 16px; z-index: 5;}
+
+        /* TERMINAL SCREEN FINAL */
+        #final-terminal {
+            display: none;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            color: #39FF14;
+            padding: 20px;
+            box-sizing: border-box;
+            border: 2px solid #39FF14;
+            box-shadow: inset 0 0 20px rgba(57, 255, 20, 0.2);
+            overflow-y: auto;
+            position: absolute;
+            top: 0; left: 0;
+            z-index: 50;
+            text-align: left;
+            font-size: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- MOTEUR DE FILTRE OPTIQUE (SVG) -->
+<svg style="width:0; height:0; position:absolute;" aria-hidden="true">
+    <filter id="cross-glow" color-interpolation-filters="sRGB">
+        <feComponentTransfer in="SourceGraphic" result="thresholded">
+            <feFuncR type="linear" slope="1.5" intercept="-0.1"/>
+            <feFuncG type="linear" slope="1.5" intercept="-0.1"/>
+            <feFuncB type="linear" slope="1.5" intercept="-0.1"/>
+        </feComponentTransfer>
+        <feGaussianBlur in="thresholded" stdDeviation="3" result="halo" />
+        <feGaussianBlur in="thresholded" stdDeviation="15 0.1" result="blurX" />
+        <feGaussianBlur in="thresholded" stdDeviation="0.1 15" result="blurY" />
+        <feBlend mode="screen" in="blurX" in2="blurY" result="cross" />
+        <feBlend mode="screen" in="cross" in2="halo" result="flare" />
+        <feComponentTransfer in="flare">
+            <feFuncR type="linear" slope="1.5" id="glow-r"/>
+            <feFuncG type="linear" slope="1.5" id="glow-g"/>
+            <feFuncB type="linear" slope="1.5" id="glow-b"/>
+        </feComponentTransfer>
+    </filter>
+</svg>
+
+<div id="sweep-flare"></div>
+<div class="scanline"></div>
+
+<!-- ÉCRAN DE BOOT RÉTRO -->
+<div id="pre-boot-screen">
+    <div id="boot-logo"></div>
+    <div id="boot-console"></div>
+</div>
+
+<div id="main-wrapper">
+    <!-- UI DE JEU DE BASE -->
+    <div id="hud-top">
+        <span id="date-display">SYS.DATE: --</span>
+        <span id="error-display">ERRORS: 0/5</span>
+        <span id="time-display">T: 00.0s</span>
+    </div>
+    
+    <div id="game-container">
+        <div id="password-display"></div>
+        <!-- Masqué par défaut -->
+        <div id="keyboard-hint" class="blinking" style="display: none;">[ KEYBOARD INPUT REQUIRED ]</div>
+
+        <div id="ui-layer">
+            <!-- ECRAN : INSTALLATION DU LOGICIEL DE DONNIE -->
+            <div id="upload-screen" class="screen" style="display: none;">
+                <h2 style="color: #B026FF; text-align: center; margin: 0 0 10px 0; font-size: 32px; text-shadow: 0 0 10px #B026FF;">DONNIE_OS // INSTALLER</h2>
+                <div id="upload-logs" style="font-size: 18px; color: #39FF14; height: 140px; overflow: hidden; margin-bottom: 20px; text-align: left; display: flex; flex-direction: column; justify-content: flex-end;"></div>
+                <div id="upload-progress-text" style="text-align: center; font-size: 28px; color: #B026FF; margin-bottom: 5px;">0%</div>
+                <div id="upload-progress-bar" style="text-align: center; font-size: 32px; letter-spacing: 4px; color: #39FF14;">[....................]</div>
+            </div>
+
+            <!-- ECRAN DONNIE_OS CLASSIQUE (PHASE 2) -->
+            <div id="start-screen" class="screen" style="display: none;">
+                <h1 class="clean-title" id="boot-title"></h1>
+                <p id="boot-text"></p>
+                <button id="start-btn" class="blinking" style="visibility:hidden;" onclick="startGame()">[ INITIATE_HACK ]</button>
+            </div>
+
+            <div id="lockout-screen" class="screen">
+                <h2>SYSTEM LOCKOUT</h2>
+                <div id="lockout-timer">30</div>
+                <p class="blinking">TOO MANY FAILED ATTEMPTS. MEMORY PURGE INITIATED.</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="hud-bottom">
+        <div id="pos-display">TARGET: TCRI_MAINFRAME | OP: DONNIE</div>
+        <div id="net-logs-container"></div>
+    </div>
+
+    <!-- TERMINAL FINAL INTERACTIF -->
+    <div id="final-terminal" onclick="document.getElementById('term-input').focus()">
+        <div id="terminal-content"></div>
+        <div id="terminal-input-line" style="display: none; align-items: center; margin-top: 10px;">
+            <span style="color: #39FF14; margin-right: 8px;">root@tcri:/secrets$</span>
+            <input type="text" id="term-input" autocomplete="off" spellcheck="false" 
+                   style="background: transparent; border: none; color: #39FF14; font-family: 'VT323', monospace; font-size: 20px; outline: none; flex-grow: 1;">
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- VIBRATION ORGANIQUE ---
+    const glowR = document.getElementById('glow-r');
+    const glowG = document.getElementById('glow-g');
+    const glowB = document.getElementById('glow-b');
+    const mainWrapper = document.getElementById('main-wrapper');
+
+    function applyRandomVibration() {
+        let globalBrightness = 0.92 + Math.random() * 0.12;
+        mainWrapper.style.filter = `brightness(${globalBrightness})`;
+        document.getElementById('pre-boot-screen').style.filter = `brightness(${globalBrightness})`;
+        
+        let glowIntensity = 1.2 + Math.random() * 0.7;
+        glowR.setAttribute('slope', glowIntensity);
+        glowG.setAttribute('slope', glowIntensity);
+        glowB.setAttribute('slope', glowIntensity);
+        setTimeout(applyRandomVibration, 40 + Math.random() * 110);
+    }
+    applyRandomVibration();
+
+    // --- SÉQUENCE DE BOOT RÉTRO TCRI & DONNIE HACK ---
+    const tcriLogoLines = [
+        "████████╗ ██████╗██████╗ ██╗",
+        "╚══██╔══╝██╔════╝██╔══██╗██║",
+        "   ██║   ██║     ██████╔╝██║",
+        "   ██║   ██║     ██╔══██╗██║",
+        "   ██║   ╚██████╗██║  ██║██║",
+        "   ╚═╝    ╚═════╝╚═╝  ╚═╝╚═╝"
+    ];
+
+    const sysBootLines = [
+        "BIOS DATE 04/15/89 19:00:00 VER 2.04",
+        "CPU: UTROM_CORE_9X, SPEED: 4.77 MHz",
+        "640K RAM SYSTEM... OK",
+        "EXTENDED MEMORY... OK",
+        "LOADING KERNEL...",
+        "MOUNTING /dev/hda1... OK",
+        "INITIATING TCRI SECURITY PROTOCOLS...",
+        "ENABLING FIREWALL... OK",
+        "CHECKING SENSORS... OK",
+        "STARTING U.T.R.O.M. DAEMON... OK",
+        "SYSTEM READY. AWAITING LOGIN..."
+    ];
+
+    const donnieHackLines = [
+        "",
+        "> CONNECTION INTERCEPTED ON PORT 77.",
+        "> PROTOCOL OVERRIDE: INITIATED.",
+        "> PREPARING PAYLOAD UPLOAD...",
+    ];
+
+    async function playPreBootSequence() {
+        const logoDiv = document.getElementById('boot-logo');
+        const consoleDiv = document.getElementById('boot-console');
+        
+        await new Promise(r => setTimeout(r, 800));
+
+        for (let line of tcriLogoLines) {
+            let div = document.createElement('div');
+            div.innerText = line;
+            logoDiv.appendChild(div);
+            await new Promise(r => setTimeout(r, 120));
+        }
+
+        await new Promise(r => setTimeout(r, 400));
+
+        for (let line of sysBootLines) {
+            let div = document.createElement('div');
+            div.innerText = line;
+            consoleDiv.appendChild(div);
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+            await new Promise(r => setTimeout(r, 40 + Math.random() * 50));
+        }
+
+        await new Promise(r => setTimeout(r, 1200));
+
+        for (let line of donnieHackLines) {
+            let div = document.createElement('div');
+            div.innerText = line;
+            if(line.trim() !== "") {
+                div.style.color = "#B026FF"; 
+                div.style.fontWeight = "bold";
+            }
+            consoleDiv.appendChild(div);
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+            await new Promise(r => setTimeout(r, 150 + Math.random() * 100));
+        }
+
+        await new Promise(r => setTimeout(r, 1000));
+
+        const preBootScreen = document.getElementById('pre-boot-screen');
+        
+        // PASSAGE SEC : CUT DIRECT (pas de transition d'opacité)
+        preBootScreen.style.display = "none";
+        document.getElementById('main-wrapper').style.display = "flex";
+        
+        // Affichage de l'écran d'installation
+        document.getElementById('start-screen').style.display = "none";
+        document.getElementById('upload-screen').style.display = "block";
+        
+        playUploadSequence();
+    }
+
+    // NOUVEAU: Modification de l'initialisation pour écouter le paramètre skipToTerminal
+    window.onload = () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('skipToTerminal') === 'true') {
+            document.getElementById('pre-boot-screen').style.display = "none";
+            document.getElementById('main-wrapper').style.display = "flex";
+            openFinalTerminal();
+        } else {
+            playPreBootSequence();
+        }
+    };
+
+    // --- ANIMATION D'INSTALLATION DU HACK (PHASE 2 - UPLOAD) ---
+    function playUploadSequence() {
+        const logsDiv = document.getElementById('upload-logs');
+        const progressText = document.getElementById('upload-progress-text');
+        const progressBar = document.getElementById('upload-progress-bar');
+        
+        const logs = [
+            "> INITIALIZING DONNIE_OS_V2.4 CORE...",
+            "> ESTABLISHING SECURE TUNNEL TO TCRI MAINFRAME...",
+            "> COMPILING CUSTOM HACKING PAYLOADS...",
+            "> INJECTING SHELL_BOOTSTRAP_v1.0...",
+            "> DEPLOYING ROOTKIT...",
+            "> BYPASSING PRIMARY FIREWALL LAYER...",
+            "> UPLOADING HASH_COLLIDER MODULE...",
+            "> ALLOCATING VIRTUAL MEMORY BLOCKS...",
+            "> OVERWRITING TCRI AUTHENTICATION PROTOCOLS...",
+            "> INSTALLATION COMPLETE. BOOTING UI..."
+        ];
+        
+        let logIndex = 0;
+        let progress = 0;
+        const totalDuration = 4500; // 4.5 secondes
+        const intervalTime = 50; 
+        const steps = totalDuration / intervalTime;
+        const progressIncrement = 100 / steps;
+        
+        const progressInterval = setInterval(() => {
+            progress += progressIncrement;
+            if (progress >= 100) progress = 100;
+            
+            // Mise à jour de la barre (20 caractères)
+            let filledChars = Math.floor(progress / 5);
+            let barStr = '[' + '#'.repeat(filledChars) + '.'.repeat(20 - filledChars) + ']';
+            progressBar.innerText = barStr;
+            progressText.innerText = Math.floor(progress) + "%";
+            
+            // Ajout progressif des logs
+            let expectedLogIndex = Math.floor((progress / 100) * logs.length);
+            while (logIndex < expectedLogIndex && logIndex < logs.length) {
+                let div = document.createElement('div');
+                div.innerText = logs[logIndex];
+                logsDiv.appendChild(div);
+                logsDiv.scrollTop = logsDiv.scrollHeight;
+                logIndex++;
+            }
+            
+            if (progress >= 100) {
+                clearInterval(progressInterval);
+                setTimeout(() => {
+                    document.getElementById('upload-screen').style.display = "none";
+                    document.getElementById('start-screen').style.display = "block";
+                    runBootSequence(); // Démarre la phase DONNIE_OS classique
+                }, 400); // Court délai avant l'affichage du menu
+            }
+        }, intervalTime);
+    }
+
+    // --- DONNÉES DU JEU & LOGIQUE ---
+    const today = new Date();
+    document.getElementById('date-display').innerText = `SYS.DATE: ${today.toISOString().split('T')[0]}`;
+    
+    function getDailySeed() {
+        return today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+    }
+
+    const passwordList = [
+        { target: "TCR1_S3cr3t_00z3", base: "TCRI_SECRET_OOZE" },
+        { target: "Mut4g3n_Tr4ck3r", base: "MUTAGEN_TRACKER" },
+        { target: "Utr0m_B4s3_34rth", base: "UTROM_BASE_EARTH" },
+        { target: "St0ckm4n_G3n3t1cs", base: "STOCKMAN_GENETICS" },
+        { target: "4l13n_T3chn0l0gy", base: "ALIEN_TECHNOLOGY" },
+        { target: "00z3_C4n1st3r_L0st", base: "OOZE_CANISTER_LOST" },
+        { target: "T3chn0dr0m3_4ct1v3", base: "TECHNODROME_ACTIVE" },
+        { target: "Kr4ng_Supr3m3_M1nd", base: "KRANG_SUPREME_MIND" },
+        { target: "D1m3ns10n_X_G4t3", base: "DIMENSION_X_GATE" },
+        { target: "R0ck_B3b0p_F41l", base: "ROCK_BEBOP_FAIL" },
+        { target: "Tr1c3r4t0n_Fl33t", base: "TRICERATON_FLEET" },
+        { target: "Shr3dd3r_F00t_Cl4n", base: "SHREDDER_FOOT_CLAN" },
+        { target: "0r0ku_S4k1_M4st3r", base: "OROKU_SAKI_MASTER" },
+        { target: "K4r41_H31r_T0_F00t", base: "KARAI_HEIR_TO_FOOT" },
+        { target: "Turtl3_S0up_S00n", base: "TURTLE_SOUP_SOON" },
+        { target: "N1nj4_V3ng34nc3", base: "NINJA_VENGEANCE" },
+        { target: "S3w3r_L41r_F0und", base: "SEWER_LAIR_FOUND" },
+        { target: "4pr1l_Ch4nn3l_S1x", base: "APRIL_CHANNEL_SIX" },
+        { target: "C4s3y_J0n3s_M4sk", base: "CASEY_JONES_MASK" },
+        { target: "Mut4nt_Turtl3s_F0ur", base: "MUTANT_TURTLES_FOUR" },
+        { target: "Spl1nt3r_R4d1c4l_R4t", base: "SPLINTER_RADICAL_RAT" },
+        { target: "C0w4bung4_P1zz4_T1m3", base: "COWABUNGA_PIZZA_TIME" }
+    ];
+
+    let currentPassObj = null;
+    let guessedLetters = new Set();
+    let gameState = "BOOT";
+    let startTime = 0;
+    let timerInterval = null;
+    let autoLogInterval = null;
+    const MAX_ERRORS = 5;
+    let currentErrors = 0;
+
+    async function runBootSequence() {
+        const title = document.getElementById('boot-title');
+        const text = document.getElementById('boot-text');
+        const btn = document.getElementById('start-btn');
+        
+        async function typeStr(el, str, speed) {
+            let current = "";
+            for(let char of str) {
+                current += char;
+                el.innerText = current + "_";
+                await new Promise(r => setTimeout(r, speed));
+            }
+            el.innerText = current;
+        }
+
+        await typeStr(title, "DONNIE_OS", 60);
+        await new Promise(r => setTimeout(r, 200));
+        
+        const instructions = [
+            "TCRI_MAINFRAME OVERRIDE TOOL v2.4",
+            "----------------------------------",
+            "> TARGET   : /root/secrets",
+            "> PAYLOAD  : HASH_COLLIDER",
+            "> STATUS   : ENCRYPTION LAYER DETECTED",
+            "> ACTION   : MANUAL KEYSPACE INJECTION REQUIRED",
+            " ",
+            "  [!] AWAITING OPERATOR INPUT (PRESS ENTER)"
+        ];
+        
+        let currentText = "";
+        for(let line of instructions) {
+            for(let char of line) {
+                currentText += char;
+                text.innerText = currentText + "_";
+                await new Promise(r => setTimeout(r, 10));
+            }
+            currentText += "\n";
+            text.innerText = currentText;
+            await new Promise(r => setTimeout(r, 80));
+        }
+        
+        // Affichage simultané du bouton et de la phrase d'indication clavier
+        btn.style.visibility = 'visible';
+        document.getElementById('keyboard-hint').style.display = 'block';
+        
+        gameState = "BOOT_READY"; // Active l'écoute de la touche ENTER
+    }
+
+    function addLog(msg = null, isAlert = false, isError = false) {
+        let logContainer = document.getElementById('net-logs-container');
+        let hex = Math.floor(Math.random()*16777215).toString(16).toUpperCase().padStart(6, '0');
+        let newLog = document.createElement('div');
+        
+        if(msg) {
+            newLog.innerText = `[SYS] ${msg}`;
+            newLog.style.color = isError ? "#FF3333" : (isAlert ? "#B026FF" : "#39FF14");
+        } else {
+            let type = Math.random() > 0.8 ? "WARN " : "INFO ";
+            newLog.innerText = `[${type}] 0x${hex} :: SEQ_${Math.floor(Math.random()*99)}`;
+            newLog.style.color = "#1a551a";
+        }
+        
+        logContainer.appendChild(newLog);
+        if(logContainer.children.length > 8) logContainer.removeChild(logContainer.firstChild);
+    }
+
+    function startGame() {
+        document.getElementById('start-screen').style.display = 'none';
+        document.getElementById('sweep-flare').style.opacity = '0.1';
+        
+        // Révélation du HUD
+        document.getElementById('error-display').style.visibility = 'visible';
+        document.getElementById('time-display').style.visibility = 'visible';
+        document.getElementById('pos-display').style.visibility = 'visible';
+        
+        let dailyIndex = getDailySeed() % passwordList.length;
+        currentPassObj = passwordList[dailyIndex]; 
+        
+        resetGameStats();
+        
+        autoLogInterval = setInterval(() => { if(gameState === "PLAYING") addLog(); }, 400);
+    }
+
+    function resetGameStats() {
+        guessedLetters.clear();
+        currentErrors = 0;
+        updateErrorDisplay();
+        gameState = "PLAYING";
+        startTime = Date.now();
+        
+        // Retire l'animation au redémarrage si elle était présente
+        document.getElementById('password-display').classList.remove('password-unlocked');
+        
+        if(timerInterval) clearInterval(timerInterval);
+        timerInterval = setInterval(updateTimer, 100);
+        
+        addLog("TARGET LOCK ACQUIRED.", true);
+        renderPassword();
+    }
+
+    function updateErrorDisplay() {
+        document.getElementById('error-display').innerText = `ERRORS: ${currentErrors}/${MAX_ERRORS}`;
+    }
+
+    function updateTimer() {
+        if(gameState !== "PLAYING") return;
+        let elapsed = (Date.now() - startTime) / 1000;
+        document.getElementById('time-display').innerText = `T: ${elapsed.toFixed(1)}s`;
+    }
+
+    function renderPassword() {
+        if(!currentPassObj) return;
+        const displayDiv = document.getElementById('password-display');
+        displayDiv.innerHTML = '';
+        
+        let allRevealed = true;
+        
+        for (let i = 0; i < currentPassObj.base.length; i++) {
+            const baseChar = currentPassObj.base[i];
+            const targetChar = currentPassObj.target[i];
+            
+            let span = document.createElement('span');
+            
+            if (baseChar === '_') {
+                span.innerText = '_';
+            } else if (guessedLetters.has(baseChar)) {
+                span.innerText = targetChar;
+            } else {
+                span.innerText = '*';
+                span.className = 'char-hidden';
+                allRevealed = false;
+            }
+            displayDiv.appendChild(span);
+        }
+
+        if (allRevealed && gameState === "PLAYING") {
+            triggerWinAnimation();
+        }
+    }
+
+    window.addEventListener('keydown', (e) => {
+        // Validation avec ENTER pour lancer le jeu
+        if (gameState === "BOOT_READY" && e.key === 'Enter') {
+            startGame();
+            return;
+        }
+        
+        if (gameState !== "PLAYING") return;
+        
+        const key = e.key.toUpperCase();
+        if (key.length === 1 && key >= 'A' && key <= 'Z') {
+            
+            if(!guessedLetters.has(key)) {
+                
+                if(currentPassObj.base.includes(key)) {
+                    guessedLetters.add(key);
+                    addLog(`INJECTION SUCCESS: [${key}]`, true);
+                    renderPassword();
+                } else {
+                    currentErrors++;
+                    updateErrorDisplay();
+                    addLog(`INJECTION FAILED: [${key}]`, false, true);
+                    
+                    if(currentErrors >= MAX_ERRORS) {
+                        triggerLockout();
+                    }
+                }
+            }
+        }
+    });
+
+    function triggerLockout() {
+        gameState = "LOCKED";
+        clearInterval(timerInterval);
+        
+        guessedLetters.clear(); 
+        renderPassword(); 
+        
+        let lockoutUI = document.getElementById('lockout-screen');
+        lockoutUI.style.display = 'flex';
+        
+        let timeLeft = 30;
+        let timerDisplay = document.getElementById('lockout-timer');
+        timerDisplay.innerText = timeLeft;
+        
+        let lockInt = setInterval(() => {
+            timeLeft--;
+            timerDisplay.innerText = timeLeft;
+            if(timeLeft <= 0) {
+                clearInterval(lockInt);
+                lockoutUI.style.display = 'none';
+                currentErrors = 0;
+                updateErrorDisplay();
+                gameState = "PLAYING";
+                startTime = Date.now() - (parseFloat(document.getElementById('time-display').innerText.substring(3)) * 1000);
+                timerInterval = setInterval(updateTimer, 100);
+                addLog("LOCKOUT LIFTED. RESUMING.", true);
+            }
+        }, 1000);
+    }
+
+    function triggerWinAnimation() {
+        gameState = "WIN_ANIM";
+        clearInterval(timerInterval);
+        clearInterval(autoLogInterval);
+        
+        document.getElementById('keyboard-hint').style.display = 'none';
+        
+        // Ajout de la classe d'animation sur le mot de passe
+        document.getElementById('password-display').classList.add('password-unlocked');
+        
+        let hackLines = [
+            "BYPASSING SECURITY PROTOCOLS...",
+            "DECRYPTING HASH...",
+            "FIREWALL DISABLED.",
+            "OVERRIDING MAIN PRIVILEGES...",
+            "ACCESSING ROOT DIR...",
+            "SUCCESS."
+        ];
+        
+        let step = 0;
+        let floodInt = setInterval(() => {
+            addLog(hackLines[step % hackLines.length], true);
+            step++;
+        }, 150);
+
+        setTimeout(() => {
+            clearInterval(floodInt);
+            openFinalTerminal();
+        }, 3500);
+    }
+
+    async function openFinalTerminal() {
+        document.getElementById('game-container').style.display = 'none';
+        document.getElementById('hud-top').style.display = 'none';
+        document.getElementById('hud-bottom').style.display = 'none';
+        
+        let term = document.getElementById('final-terminal');
+        term.style.display = 'flex';
+        term.style.flexDirection = 'column';
+        
+        let termContent = document.getElementById('terminal-content');
+        let termInputLine = document.getElementById('terminal-input-line');
+        let termInput = document.getElementById('term-input');
+        
+        function printBootHeader() {
+            return [
+                "TCRI_MAINFRAME // ROOT_ACCESS GRANTED",
+                "Welcome, Administrator.",
+                "----------------------------------------",
+                "> SEC_LEVEL : OMEGA",
+                "> DATE      : " + today.toISOString().split('T')[0],
+                "> EXECUTING COMMAND: ls -a /secrets/",
+                "...",
+                "  mutagen_formula.dat",
+                "  project_krang.exe    (KRANG_MAINFRAME // DRILL_SIMULATOR)",
+                "  sewer_map.exe        (DONNIE_OS // SEWER_MAP)",
+                "----------------------------------------",
+                "> ALL FILES UNLOCKED.",
+                "> TYPE 'run [filename]' TO EXECUTE."
+            ];
+        }
+
+        let currentText = "";
+        for(let line of printBootHeader()) {
+            for(let char of line) {
+                currentText += char;
+                termContent.innerText = currentText;
+                await new Promise(r => setTimeout(r, 10)); 
+            }
+            currentText += "\n";
+            termContent.innerText = currentText;
+            await new Promise(r => setTimeout(r, 150));
+        }
+
+        const autocompleteDict = [
+            "run", "project_krang.exe", "sewer_map.exe", "mutagen_formula.dat", 
+            "clear", "cls", "ls", "help", "whoami", "pwd"
+        ];
+        
+        let commandHistory = [];
+        let historyIndex = -1;
+
+        termInputLine.style.display = 'flex';
+        termInput.focus();
+
+        termInput.addEventListener('keydown', function(e) {
+            
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                let words = this.value.split(' ');
+                let lastWord = words[words.length - 1].toLowerCase();
+
+                if (lastWord !== "") {
+                    let matches = autocompleteDict.filter(w => w.startsWith(lastWord));
+                    if (matches.length === 1) {
+                        words[words.length - 1] = matches[0];
+                        this.value = words.join(' ') + " ";
+                    }
+                }
+            }
+            else if (e.ctrlKey && e.key.toLowerCase() === 'c') {
+                e.preventDefault();
+                let echoLine = document.createElement('div');
+                echoLine.innerText = `root@tcri:/secrets$ ${this.value}^C`;
+                termContent.appendChild(echoLine);
+                this.value = '';
+                term.scrollTop = term.scrollHeight;
+            }
+            else if(e.key === 'ArrowUp') {
+                e.preventDefault();
+                if(commandHistory.length > 0 && historyIndex > 0) {
+                    historyIndex--;
+                    this.value = commandHistory[historyIndex];
+                } else if (commandHistory.length > 0 && historyIndex === -1) {
+                    historyIndex = commandHistory.length - 1;
+                    this.value = commandHistory[historyIndex];
+                }
+            } 
+            else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if(historyIndex !== -1 && historyIndex < commandHistory.length - 1) {
+                    historyIndex++;
+                    this.value = commandHistory[historyIndex];
+                } else if (historyIndex === commandHistory.length - 1) {
+                    historyIndex = -1;
+                    this.value = '';
+                }
+            }
+            else if(e.key === 'Enter') {
+                let rawVal = this.value.trim();
+                let val = rawVal.toLowerCase();
+                
+                if (rawVal !== "") {
+                    commandHistory.push(rawVal);
+                }
+                historyIndex = -1;
+                this.value = '';
+                
+                let echoLine = document.createElement('div');
+                echoLine.innerText = `root@tcri:/secrets$ ${rawVal}`;
+                termContent.appendChild(echoLine);
+
+                let responseLine = document.createElement('div');
+                let printBr = true;
+                
+                if(val === 'run project_krang.exe' || val === 'project_krang.exe') {
+                    responseLine.innerText = "LAUNCHING KRANG DRILL PROTOCOL...";
+                    responseLine.style.color = "#ff3333";
+                    setTimeout(() => window.location.href = 'DRILL_1.html', 1500);
+                } 
+                else if (val === 'run sewer_map.exe' || val === 'sewer_map.exe') {
+                    responseLine.innerText = "ROUTING TO SEWER MAP...";
+                    responseLine.style.color = "#B026FF";
+                    setTimeout(() => window.location.href = 'Sewer_1.html', 1500);
+                } 
+                else if (val === 'ls' || val === 'dir' || val === 'ls -a') {
+                    responseLine.innerText = "mutagen_formula.dat  project_krang.exe  sewer_map.exe";
+                }
+                else if (val === 'run mutagen_formula.dat' || val === 'mutagen_formula.dat') {
+                    responseLine.innerText = "ERR_NO_ACCESS: ENCRYPTION LEVEL TOO HIGH.\n[!] KEY REQUIRED: BAXTER_OVR_99";
+                    responseLine.style.color = "#FF3333";
+                }
+                else if (val === 'clear' || val === 'cls') {
+                    termContent.innerHTML = '';
+                    printBr = false; 
+                }
+                else if (val === 'whoami') {
+                    responseLine.innerText = "Current session: root\nOriginal vector: donatello_shell_v1.0";
+                    responseLine.style.color = "#B026FF";
+                }
+                else if (val === 'pwd') {
+                    responseLine.innerText = "/tcri/mainframe/sector7/secrets";
+                }
+                else if (val === 'help') {
+                    responseLine.innerText = "AVAILABLE COMMANDS:\n- ls    : List directory contents\n- run   : Execute application\n- clear : Clear terminal screen\n- whoami: Display current user details\n- pwd   : Print working directory";
+                }
+                else if (val !== "") {
+                    responseLine.innerText = `bash: ${val.split(' ')[0]}: command not found`;
+                    responseLine.style.color = "#FF3333";
+                }
+                
+                if (val !== "" && val !== "clear" && val !== "cls") {
+                    termContent.appendChild(responseLine);
+                }
+                if (printBr) {
+                    termContent.appendChild(document.createElement('br'));
+                }
+                
+                term.scrollTop = term.scrollHeight;
+            }
+        });
+    }
+</script>
+</body>
+</html>

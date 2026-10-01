@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TCRI // SEWER_EXTRACTION_SIM</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+        body {
+            background-color: #050505;
+            color: #39FF14;
+            font-family: 'VT323', monospace;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #main-wrapper {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            max-width: 600px;
+            height: 100%;
+            max-height: 900px;
+            padding: 10px;
+            box-sizing: border-box;
+            position: relative;
+            z-index: 10;
+        }
+
+        /* Top HUD */
+        #hud-top {
+            display: flex;
+            justify-content: space-between;
+            font-size: 22px;
+            margin-bottom: 10px;
+            text-shadow: 0 0 5px #39FF14;
+            flex-shrink: 0;
+        }
+
+        /* Strict Square Game Area */
+        #game-container {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            min-height: 0;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        #gameCanvas {
+            position: absolute;
+            inset: 0;
+            box-sizing: border-box;
+            background-color: #000;
+            border: 2px solid #FF3333;
+            box-shadow: 0 0 15px rgba(255, 51, 51, 0.3);
+            image-rendering: pixelated;
+            width: 100%;
+            height: 100%;
+            object-fit: contain; /* Maintient strictement le format carré */
+            display: block;
+        }
+
+        /* Bottom HUD */
+        #hud-bottom {
+            display: flex;
+            flex-direction: column;
+            margin-top: 10px;
+            border-top: 1px dashed #FF3333;
+            padding-top: 10px;
+            flex-grow: 1;
+            overflow: hidden;
+        }
+
+        #pos-display {
+            font-size: 20px;
+            color: #FF3333;
+            margin-bottom: 5px;
+        }
+
+        #net-logs-container {
+            flex-grow: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            font-size: 16px;
+            color: #1a551a;
+            line-height: 1.1;
+        }
+
+        /* UI Overlays */
+        #ui-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .screen {
+            background: rgba(0, 0, 0, 0.95);
+            border: 2px solid #FF3333;
+            padding: 20px;
+            text-align: left;
+            pointer-events: auto;
+            width: 85%;
+            max-height: 90%;
+            overflow-y: auto;
+            box-shadow: 0 0 20px rgba(255, 51, 51, 0.4);
+            box-sizing: border-box;
+        }
+
+        h1.clean-title { 
+            margin: 0 0 5px 0; 
+            font-size: 40px; 
+            color: #FF3333; 
+            text-shadow: 0 0 10px #FF3333;
+            letter-spacing: 2px;
+            text-align: center;
+        }
+        
+        p { font-size: 18px; line-height: 1.3; margin: 10px 0; }
+        
+        #boot-text {
+            color: #aaa;
+            white-space: pre-wrap;
+            min-height: 160px;
+        }
+
+        button {
+            background: #000;
+            color: #FF3333;
+            border: 1px solid #FF3333;
+            font-family: 'VT323', monospace;
+            font-size: 24px;
+            padding: 10px 20px;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: all 0.2s;
+            display: block;
+            width: 100%;
+        }
+        
+        button:hover { background: #FF3333; color: #000; }
+
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+        .blinking { animation: blink 1s step-end infinite; }
+
+        /* D-PAD for mobile */
+        #dpad {
+            display: none;
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            width: 150px;
+            height: 150px;
+            z-index: 50;
+        }
+        @media (max-width: 768px) {
+            #dpad { display: block; }
+            #hud-top { font-size: 18px; }
+            #main-wrapper { padding-bottom: 170px; }
+        }
+        
+        .dpad-btn {
+            position: absolute;
+            width: 45px; height: 45px;
+            background: rgba(255, 51, 51, 0.1);
+            border: 1px solid #FF3333;
+            color: #FF3333;
+            font-size: 24px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 5px;
+        }
+        #btn-up { top: 0; left: 52.5px; }
+        #btn-down { bottom: 0; left: 52.5px; }
+        #btn-left { top: 52.5px; left: 0; }
+        #btn-right { top: 52.5px; right: 0; }
+
+        /* Filtre Optique SVG */
+        #sweep-flare {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            pointer-events: none;
+            z-index: 95;
+            opacity: 0.1; 
+            backdrop-filter: url(#cross-glow);
+            -webkit-backdrop-filter: url(#cross-glow);
+            mix-blend-mode: screen;
+        }
+
+        .scanline {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 3px 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+        
+        /* BOUTON DE FERMETURE */
+        #close-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 40px;
+            height: 40px;
+            background: #000;
+            color: #ff3333;
+            border: 2px solid #ff3333;
+            font-family: 'VT323', monospace;
+            font-size: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: all 0.2s;
+            margin-top: 0;
+            padding: 0;
+        }
+        #close-btn:hover {
+            background: #ff3333;
+            color: #000;
+        }
+    </style>
+</head>
+<body>
+
+<button id="close-btn" onclick="window.location.href='TCRI_1.html?skipToTerminal=true'">✕</button>
+
+<svg style="width:0; height:0; position:absolute;" aria-hidden="true">
+    <filter id="cross-glow" color-interpolation-filters="sRGB">
+        <feComponentTransfer in="SourceGraphic" result="thresholded">
+            <feFuncR type="linear" slope="1.5" intercept="-0.1"/>
+            <feFuncG type="linear" slope="1.5" intercept="-0.1"/>
+            <feFuncB type="linear" slope="1.5" intercept="-0.1"/>
+        </feComponentTransfer>
+        <feGaussianBlur in="thresholded" stdDeviation="3" result="halo" />
+        <feGaussianBlur in="thresholded" stdDeviation="15 0.1" result="blurX" />
+        <feGaussianBlur in="thresholded" stdDeviation="0.1 15" result="blurY" />
+        <feBlend mode="screen" in="blurX" in2="blurY" result="cross" />
+        <feBlend mode="screen" in="cross" in2="halo" result="flare" />
+        <feComponentTransfer in="flare">
+            <feFuncR type="linear" slope="1.8" id="glow-r"/>
+            <feFuncG type="linear" slope="0.5" id="glow-g"/>
+            <feFuncB type="linear" slope="1.2" id="glow-b"/>
+        </feComponentTransfer>
+    </filter>
+</svg>
+
+<div id="sweep-flare"></div>
+<div class="scanline"></div>
+
+<div id="main-wrapper">
+    <div id="hud-top">
+        <span id="date-display">SYS.DATE: --</span>
+        <span id="time-display" style="transition: color 0.1s;">T: 00.0s</span>
+        <span id="status-display">STATUS: STANDBY</span>
+    </div>
+    
+    <div id="game-container">
+        <canvas id="gameCanvas" width="600" height="600"></canvas>
+
+        <div id="ui-layer">
+            <div id="start-screen" class="screen">
+                <h1 class="clean-title" id="boot-title"></h1>
+                <p id="boot-text"></p>
+                <button type="button" id="start-btn" class="blinking" style="visibility:hidden;" onclick="window.startGame()">[ INIT_SIMULATION ]</button>
+            </div>
+
+            <div id="end-screen" class="screen" style="display:none; text-align: center;">
+                <h1 class="clean-title" style="font-size:36px; color:#39FF14; text-shadow:0 0 10px #39FF14;">EXTRACTION SUCCESSFUL</h1>
+                <p id="final-time" style="font-size: 22px; color: #fff;"></p>
+                <p id="final-penalties" style="color: #ff3333;"></p>
+                <textarea id="share-text" rows="5" style="width: 100%; background: #000; color: #39FF14; border: 1px dashed #FF3333; font-family: 'VT323'; margin-bottom: 10px; resize: none;" readonly></textarea>
+                <button type="button" onclick="window.copyShare()">[ COPY_REPORT ]</button>
+                <button type="button" onclick="window.resetGame()" style="margin-top: 5px; color: #fff; border-color: #fff;">[ RETRY_DAILY_SEED ]</button>
+            </div>
+            
+            <div id="compass-flash" style="display:none; position:absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 60; font-size: 150px; color: #fff; text-shadow: 0 0 20px #fff;">
+                <svg width="110" height="110" viewBox="0 0 100 100" aria-label="Direction de la sortie" role="img" style="display:block;filter:drop-shadow(0 0 20px #fff)"><path d="M12 12L94 50L12 88L29 50Z" fill="currentColor"/></svg>
+            </div>
+        </div>
+    </div>
+
+    <div id="hud-bottom">
+        <div id="pos-display">POS: [00, 00] | AGENT: STANDBY</div>
+        <div id="net-logs-container"></div>
+    </div>
+
+    <div id="dpad">
+        <div class="dpad-btn" id="btn-up" aria-label="Haut"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 21V11H4L12 3L20 11H15V21Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="miter" transform="rotate(0 12 12)"/></svg></div>
+        <div class="dpad-btn" id="btn-down" aria-label="Bas"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 21V11H4L12 3L20 11H15V21Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="miter" transform="rotate(180 12 12)"/></svg></div>
+        <div class="dpad-btn" id="btn-left" aria-label="Gauche"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 21V11H4L12 3L20 11H15V21Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="miter" transform="rotate(-90 12 12)"/></svg></div>
+        <div class="dpad-btn" id="btn-right" aria-label="Droite"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 21V11H4L12 3L20 11H15V21Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="miter" transform="rotate(90 12 12)"/></svg></div>
+    </div>
+</div>
+
+<script id="maze-glyphs-engine">
+/*
+ * SPRITES FIXES DU PLATEAU — aucune police, aucune mesure de texte au runtime.
+ * Canevas conservé en 600 × 600 ; grille visible de 31 × 31 ; fonte source 19 px.
+ * Inventaire : █ mur ; · sol ; ● joueur ; O sortie ; A adrénaline ;
+ * M mutagène ; * sonar. L'espace est transparent.
+ * █ : masque Windows extrait précédemment de la capture de comparaison.
+ * ● : cercle géométrique tracé avec arc(), indépendant de toute police.
+ * · O A M * : pixels figés de VT323-Regular (Google Fonts / Peter Hull, OFL).
+ * Les effets CRT, couleurs, visibilité et règles restent dans le jeu d'origine.
+ * Les pixels n'incluent pas les scanlines ni le halo, appliqués par le HTML.
+ */
+window.MazeGlyphs = (() => {
+    'use strict';
+    const DATA = {"·":{"w":3,"h":4,"dx":2,"dy":-7,"rle":"ATIBfQFtAXwB/wHoAXUB/wHkAXkB/wHn"},"O":{"w":7,"h":11,"dx":0,"dy":-11,"rle":"AgAB4gL/AZ8CAAHcAfkBywHbAf8BlQEAAdwB8gEAAZQB/wGVAZAB/wGbAgAB3QHyAYsB/wGWAgAB2wHwAZIB/wGcAgAB3gHzAY0B/wGYAgAB3AHxAYEB+AGvAQABQAHlAeIBAAHcAfMBAAGWAf8BlwEAARYB2wHLAdsBogENAgAB4gL/AZ8BAA=="},"A":{"w":7,"h":11,"dx":0,"dy":-11,"rle":"AgABpwH/Af0EAAG/Af8B/QFmAwAB4wL/AaECAAGcAf8BrgHfAfgCAAG9AfgBZQG2AfsBagEAAdwB8gEAAZQB/wGXAQAB3AT/AZYBPQHjAdwCywHxAawBkgH/AZ0CAAHeAfMBiwH/AZYCAAHbAfABkAH/AZsCAAHdAfI="},"M":{"w":7,"h":11,"dx":0,"dy":-11,"rle":"AZEB/wHaAQABXQH/AfIBjAH/AfABcAGvAf8B8AGQAv8BkAHWAf8B8gGPAf8BvQHEAeAB3QHxAY8B/wG9AcQB4AHdAfEBkQH/Ab4B/wHnAd0B8gGLAf8BrQH2AdAB2wHwAZIB/wGcAeoBrwHeAfMBjQH/AZgB5wGrAdwB8QGOAf8BmAHUAZwB3AHxAZAB/wGbAgAB3QHy"},"*":{"w":6,"h":9,"dx":1,"dy":-10,"rle":"AgAB6AGsBAAB6AGsAgAB9AHaAekBwAH/AbsBwAHRAfYB5wHLAZIBAAGnAf8B/QIAAfQB2gHpAcAB/wG7AcABqgHmAbQBywGSAgAB6QGtBAABHAENAgA="},"█":{"w":11,"h":22,"dx":0,"dy":-21,"rle":"8v8="},"●":{"w":12,"h":12,"dx":0,"dy":-11,"rle":"DwABJQF8AZYBdgEdBgABcQH7A/8B9gFbBAABSQb/AfsBMwMAAb4H/wGkAwAB7Af/AdMDAAHhB/8ByAMAAZgH/wF/AwABGgHnBf8B2QEOBAABIwG6Af4B/wH9Aa0BGAcAARcBLwESEQA="}};
+    const masks = new Map();
+    const cache = new Map();
+    for (const [glyph, spec] of Object.entries(DATA)) {
+        const encoded = atob(spec.rle);
+        const alpha = new Uint8Array(spec.w * spec.h);
+        let offset = 0;
+        for (let i = 0; i < encoded.length; i += 2) {
+            const length = encoded.charCodeAt(i);
+            alpha.fill(encoded.charCodeAt(i + 1), offset, offset + length);
+            offset += length;
+        }
+        if (offset !== alpha.length) throw new Error('Sprite incomplet : ' + glyph);
+        masks.set(glyph, alpha);
+    }
+
+    function sprite(glyph, color) {
+        const key = glyph + ':' + color;
+        if (cache.has(key)) return cache.get(key);
+        const spec = DATA[glyph];
+        if (!spec) throw new Error('Symbole du jeu non défini : ' + glyph);
+        if (!/^#[0-9a-f]{6}$/i.test(color)) throw new Error('Couleur attendue : #RRGGBB');
+        const rgb = [1, 3, 5].map(i => parseInt(color.slice(i, i + 2), 16));
+        const canvas = document.createElement('canvas');
+        canvas.width = spec.w; canvas.height = spec.h;
+        const context = canvas.getContext('2d');
+        const pixels = context.createImageData(spec.w, spec.h);
+        const alpha = masks.get(glyph);
+        for (let i = 0; i < alpha.length; i++) {
+            pixels.data[i * 4] = rgb[0];
+            pixels.data[i * 4 + 1] = rgb[1];
+            pixels.data[i * 4 + 2] = rgb[2];
+            pixels.data[i * 4 + 3] = alpha[i];
+        }
+        context.putImageData(pixels, 0, 0);
+        if (cache.size >= 64) cache.delete(cache.keys().next().value);
+        cache.set(key, canvas);
+        return canvas;
+    }
+
+    function draw(ctx, glyph, x, y, color = ctx.fillStyle) {
+        if (glyph === ' ') return;
+        const spec = DATA[glyph];
+        if (!spec) throw new Error('Symbole du jeu non défini : ' + glyph);
+
+        if (glyph === '●' || glyph === '·') {
+            const step = ctx.canvas.height / 31;
+            const wall = DATA['█'];
+            const top = Math.round(y - step + wall.dy) + wall.h;
+            const bottom = Math.round(y + step + wall.dy);
+            const cx = Math.round(x + wall.dx) + wall.w / 2;
+            const cy = Math.floor((top + bottom) / 2) + 0.5;
+
+            if (glyph === '●') {
+                ctx.save();
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(cx, cy, 4.4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            } else {
+                ctx.drawImage(sprite(glyph, color.toLowerCase()),
+                    Math.round(cx - spec.w / 2), Math.round(cy - spec.h / 2));
+            }
+            return;
+        }
+
+        const image = sprite(glyph, color.toLowerCase());
+        ctx.drawImage(image, Math.round(x + spec.dx), Math.round(y + spec.dy));
+    }
+
+    return Object.freeze({draw, characters:Object.freeze(Object.keys(DATA))});
+})();
+</script>
+
+<script>
+    // --- VIBRATION CRT AVEC SVG GLOW ---
+    const glowR = document.getElementById('glow-r');
+    const glowB = document.getElementById('glow-b');
+    const mainWrapper = document.getElementById('main-wrapper');
+
+    function applyRandomVibration() {
+        let globalBrightness = 0.92 + Math.random() * 0.12;
+        mainWrapper.style.filter = `brightness(${globalBrightness})`;
+        
+        let glowIntensity = 1.0 + Math.random() * 0.8;
+        if (glowR && glowB) {
+            glowR.setAttribute('slope', glowIntensity * 1.8);
+            glowB.setAttribute('slope', glowIntensity * 1.2);
+        }
+        
+        setTimeout(applyRandomVibration, 40 + Math.random() * 110);
+    }
+    applyRandomVibration();
+
+    // --- ANIMATION BOOT SEQUENCE (TYPEWRITER) ---
+    async function runBootSequence() {
+        const title = document.getElementById('boot-title');
+        const text = document.getElementById('boot-text');
+        const btn = document.getElementById('start-btn');
+        
+        async function typeStr(el, str, speed) {
+            let current = "";
+            for(let char of str) {
+                current += char;
+                el.innerText = current + "_";
+                await new Promise(r => setTimeout(r, speed));
+            }
+            el.innerText = current;
+        }
+
+        await typeStr(title, "EXTRACTION_TRAINING_V3.2", 60);
+        await new Promise(r => setTimeout(r, 200));
+        
+        const instructions = [
+            "SEWER EXTRACTION MODULE",
+            "----------------------------",
+            "> OBJECTIVE : Find the sewer exit (O)",
+            "> HAZARD    : Walls (▓) trigger alert (+3s)",
+            "> BONUS     :",
+            "  [A] ADRENALINE (Speed x2.5)",
+            "  [M] MUTAGEN (Freeze time/collision 5s)",
+            "  [*] SONAR (Directional radar)"
+        ];
+        
+        let currentText = "";
+        for(let line of instructions) {
+            for(let char of line) {
+                currentText += char;
+                text.innerText = currentText + "_";
+                await new Promise(r => setTimeout(r, 10));
+            }
+            currentText += "\n";
+            text.innerText = currentText;
+            await new Promise(r => setTimeout(r, 80));
+        }
+        
+        btn.style.visibility = 'visible';
+    }
+
+    // --- LCG SEED RNG & DAILY LOGIC ---
+    const today = new Date();
+    const seedDateStr = today.toISOString().split('T')[0];
+    
+    function getDailySeed() {
+        return today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+    }
+    
+    let baseSeed = getDailySeed();
+    let m_w = baseSeed;
+    let m_z = 987654321 ^ baseSeed;
+    let mask = 0xffffffff;
+    function random() {
+        m_z = (36969 * (m_z & 65535) + (m_z >> 16)) & mask;
+        m_w = (18000 * (m_w & 65535) + (m_w >> 16)) & mask;
+        let result = ((m_z << 16) + (m_w & 65535)) >>> 0;
+        return result / 4294967296;
+    }
+
+    document.getElementById('date-display').innerText = `SYS.DATE: ${seedDateStr}`;
+
+    window.onload = runBootSequence;
+
+    // --- GAME CONSTANTS & VARIABLES ---
+    const GRID_SIZE = 61;
+    let maze = [], explored = [], visible = [], items = [];
+    
+    let player = { x: 30, y: 30 }; 
+    let exit = { x: 0, y: 0 };
+    
+    // Noms des agents TCRI/Foot pour variation
+    const tcriAgents = ["BAXTER_S", "MORTU", "CHRELL", "NORMAN", "CYNTHIA_U", "BISHOP", "KRAANG_72", "DR_COBURN"];
+    let currentAgent = "STANDBY";
+
+    let gameState = "BOOT";
+    let elapsedTime = 0, penaltyTime = 0, hasMoved = false;
+    let isStasis = false, stasisEnd = 0, isSpeed = false, speedEnd = 0;
+    
+    // Compteur de tentatives
+    let attemptCount = 0;
+    
+    let keys = { ArrowUp:false, ArrowDown:false, ArrowLeft:false, ArrowRight:false, w:false, a:false, s:false, d:false, z:false, q:false };
+    let moveTimer = 0;
+    let FOV_RADIUS = 7;
+    let collectedItems = 0;
+    let wallBumped = false;
+    let impactVisualEnd = 0; 
+    let lastMoveTime = 0; 
+    let lastTime = Date.now();
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "center";
+
+    function initCanvasFixed() {
+        if (!canvas) return;
+        canvas.width = 600;
+        canvas.height = 600;
+        ctx.imageSmoothingEnabled = false;
+    }
+    initCanvasFixed();
+
+    // --- LOG SYSTEM ---
+    function appendLogMessage(type, msg, color = '#1a551a') {
+        let logContainer = document.getElementById('net-logs-container');
+        let hex = Math.floor(Math.random()*16777215).toString(16).toUpperCase().padStart(6, '0');
+        let newLog = document.createElement('div');
+        newLog.innerText = `[${type}] 0x${hex} :: ${msg}`;
+        newLog.style.color = color;
+        logContainer.appendChild(newLog);
+        if(logContainer.children.length > 8) logContainer.removeChild(logContainer.firstChild);
+    }
+
+    function generateRandomLog() {
+        if(gameState !== "PLAYING") return;
+        let type = Math.random() > 0.8 ? "WARN " : "INFO ";
+        let msg = `SEQ_${Math.floor(Math.random()*99)}`;
+        appendLogMessage(type, msg);
+    }
+    setInterval(generateRandomLog, 400);
+
+    function initArrays() {
+        maze = []; explored = []; visible = []; items = [];
+        for (let y = 0; y < GRID_SIZE; y++) {
+            maze[y] = []; explored[y] = []; visible[y] = [];
+            for (let x = 0; x < GRID_SIZE; x++) {
+                maze[y][x] = 1;
+                explored[y][x] = false;
+                visible[y][x] = false;
+            }
+        }
+    }
+
+    function generateMaze() {
+        initArrays();
+        player = { x: Math.floor(GRID_SIZE/2), y: Math.floor(GRID_SIZE/2) };
+        if(player.x % 2 === 0) player.x++; if(player.y % 2 === 0) player.y++;
+        
+        let stack = [{x: player.x, y: player.y}];
+        maze[player.y][player.x] = 0;
+
+        while (stack.length > 0) {
+            let current = stack[stack.length - 1];
+            let neighbors = [];
+            const dirs = [ {dx: 0, dy: -2}, {dx: 0, dy: 2}, {dx: -2, dy: 0}, {dx: 2, dy: 0} ];
+            for (let d of dirs) {
+                let nx = current.x + d.dx;
+                let ny = current.y + d.dy;
+                if (nx > 0 && nx < GRID_SIZE - 1 && ny > 0 && ny < GRID_SIZE - 1 && maze[ny][nx] === 1) {
+                    neighbors.push({x: nx, y: ny, px: current.x + d.dx/2, py: current.y + d.dy/2});
+                }
+            }
+            if (neighbors.length > 0) {
+                let next = neighbors[Math.floor(random() * neighbors.length)];
+                maze[next.py][next.px] = 0;
+                maze[next.y][next.x] = 0;
+                stack.push({x: next.x, y: next.y});
+            } else { stack.pop(); }
+        }
+
+        let edge = Math.floor(random() * 4);
+        let pos = Math.floor(random() * ((GRID_SIZE-3)/2)) * 2 + 1;
+        if (edge === 0) { exit = {x: pos, y: 1}; maze[0][pos] = 0; }
+        else if (edge === 1) { exit = {x: pos, y: GRID_SIZE-2}; maze[GRID_SIZE-1][pos] = 0; }
+        else if (edge === 2) { exit = {x: 1, y: pos}; maze[pos][0] = 0; }
+        else { exit = {x: GRID_SIZE-2, y: pos}; maze[pos][GRID_SIZE-1] = 0; }
+
+        let itemTypes = ['A', 'M', '*'];
+        for(let type of itemTypes) {
+            let placed = false;
+            while(!placed) {
+                let ix = Math.floor(random() * (GRID_SIZE-2)) + 1;
+                let iy = Math.floor(random() * (GRID_SIZE-2)) + 1;
+                if(maze[iy][ix] === 0 && (Math.abs(ix-player.x) > 5 || Math.abs(iy-player.y) > 5)) {
+                    if(!items.some(i => i.x === ix && i.y === iy)) {
+                        items.push({x: ix, y: iy, type: type});
+                        placed = true;
+                    }
+                }
+            }
+        }
+    }
+
+    function calculateFOV() {
+        for(let y=0; y<GRID_SIZE; y++) for(let x=0; x<GRID_SIZE; x++) visible[y][x] = false;
+        visible[player.y][player.x] = true;
+        explored[player.y][player.x] = true;
+
+        for(let angle = 0; angle < 360; angle += 2) {
+            let rad = angle * Math.PI / 180;
+            let dx = Math.cos(rad);
+            let dy = Math.sin(rad);
+            let cx = player.x + 0.5;
+            let cy = player.y + 0.5;
+            
+            for(let r = 0; r <= FOV_RADIUS; r++) {
+                cx += dx; cy += dy;
+                let mapX = Math.floor(cx); let mapY = Math.floor(cy);
+                if(mapX < 0 || mapX >= GRID_SIZE || mapY < 0 || mapY >= GRID_SIZE) break;
+                visible[mapY][mapX] = true;
+                explored[mapY][mapX] = true;
+                if(maze[mapY][mapX] === 1) break;
+            }
+        }
+    }
+
+    // --- INPUTS ---
+    window.addEventListener('keydown', e => {
+        // Validation avec Enter si sur l'écran boot
+        if (e.key === "Enter" && gameState === "BOOT" && document.getElementById('start-btn').style.visibility === 'visible') {
+            window.startGame();
+        }
+        keys[e.key] = true;
+    });
+    window.addEventListener('keyup', e => keys[e.key] = false);
+
+    const btnIds = {'btn-up':'ArrowUp', 'btn-down':'ArrowDown', 'btn-left':'ArrowLeft', 'btn-right':'ArrowRight'};
+    for(let id in btnIds) {
+        let btn = document.getElementById(id);
+        btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[btnIds[id]] = true; });
+        btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[btnIds[id]] = false; });
+        btn.addEventListener('mousedown', (e) => { e.preventDefault(); keys[btnIds[id]] = true; });
+        btn.addEventListener('mouseup', (e) => { e.preventDefault(); keys[btnIds[id]] = false; });
+    }
+
+    window.startGame = function() {
+        if (gameState === "PLAYING") return; 
+
+        initCanvasFixed();
+        document.getElementById('start-screen').style.display = 'none';
+        document.getElementById('end-screen').style.display = 'none';
+        
+        // Vider les logs pour repartir sur une console propre au retry
+        let logContainer = document.getElementById('net-logs-container');
+        if (logContainer) {
+            logContainer.innerHTML = '';
+        }
+
+        attemptCount++;
+
+        let currentSeed = getDailySeed();
+        m_w = currentSeed;
+        m_z = 987654321 ^ currentSeed;
+        
+        currentAgent = tcriAgents[Math.floor(Math.random() * tcriAgents.length)];
+
+        generateMaze();
+        gameState = "PLAYING";
+        hasMoved = false; 
+        penaltyTime = 0; 
+        elapsedTime = 0; 
+        collectedItems = 0;
+        isStasis = false; 
+        isSpeed = false; 
+        wallBumped = false; 
+        impactVisualEnd = 0; 
+        lastMoveTime = 0;
+        
+        keys = { ArrowUp:false, ArrowDown:false, ArrowLeft:false, ArrowRight:false, w:false, a:false, s:false, d:false, z:false, q:false };
+        moveTimer = 0;
+
+        calculateFOV();
+        updatePosDisplay();
+        
+        lastTime = Date.now();
+        requestAnimationFrame(update);
+    };
+
+    window.resetGame = function() {
+        window.startGame();
+    };
+
+    function updatePosDisplay() {
+        document.getElementById('pos-display').innerText = `POS: [${player.x.toString().padStart(2,'0')}, ${player.y.toString().padStart(2,'0')}] | AGENT: ${currentAgent}`;
+    }
+
+    function update() {
+        if (gameState !== "PLAYING") return;
+        
+        let now = Date.now();
+        let dt = now - lastTime;
+        lastTime = now;
+        
+        if (keys.ArrowUp || keys.w || keys.z || keys.ArrowDown || keys.s || keys.ArrowLeft || keys.a || keys.q || keys.ArrowRight || keys.d) {
+            lastMoveTime = now;
+        }
+
+        if (isStasis && now > stasisEnd) isStasis = false;
+        if (isSpeed && now > speedEnd) isSpeed = false;
+
+        // Le temps ne s'écoule pas si stasis (Mutagène)
+        if (hasMoved && !isStasis) elapsedTime += dt;
+        
+        // MAJ du Timer avec retour visuel d'impact et de stase
+        let displayTime = ((elapsedTime + penaltyTime) / 1000).toFixed(1);
+        let timeDisplayEl = document.getElementById('time-display');
+        timeDisplayEl.innerText = `T: ${displayTime}s`;
+        
+        if (now < impactVisualEnd) {
+            timeDisplayEl.style.color = "#FF3333";
+            timeDisplayEl.style.textShadow = "0 0 10px #FF3333";
+        } else if (isStasis) {
+            timeDisplayEl.style.color = "#FFFFFF";
+            timeDisplayEl.style.textShadow = "0 0 10px #FFFFFF";
+        } else {
+            timeDisplayEl.style.color = "";
+            timeDisplayEl.style.textShadow = "";
+        }
+        
+        // Animation des points du HUD Status
+        let dotCount = Math.floor(now / 300) % 4;
+        let animatedDots = ".".repeat(dotCount) + "\u00A0".repeat(3 - dotCount);
+        
+        let status = "";
+        if (isStasis) status = "MUTAGEN (PAUSE)";
+        else if (isSpeed) status = "ADRENALINE (x2.5)";
+        else if (now - lastMoveTime < 300) status = `EXPLORING${animatedDots}`;
+        else status = `SCANNING${animatedDots}`;
+        
+        document.getElementById('status-display').innerText = `STATUS: ${status}`;
+        document.getElementById('status-display').style.color = (isStasis || isSpeed) ? "#fff" : "#39FF14";
+
+        moveTimer -= dt;
+        let baseMoveSpeed = isSpeed ? (120 / 2.5) : 120;
+
+        if (moveTimer <= 0) {
+            let dx = 0, dy = 0;
+            
+            if (keys.ArrowUp || keys.w || keys.z) { dy = -1; }
+            else if (keys.ArrowDown || keys.s) { dy = 1; }
+            else if (keys.ArrowLeft || keys.a || keys.q) { dx = -1; }
+            else if (keys.ArrowRight || keys.d) { dx = 1; }
+
+            if (dx !== 0 || dy !== 0) {
+                if (!hasMoved) { hasMoved = true; }
+                let nx = player.x + dx; let ny = player.y + dy;
+                
+                if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE) {
+                    if (maze[ny][nx] === 1) {
+                        // SOLID WALL COLLISION
+                        if (!isStasis && !wallBumped) { 
+                            penaltyTime += 3000;
+                            wallBumped = true;
+                            impactVisualEnd = now + 70; 
+                            showPenaltyFloat();
+                            appendLogMessage('ALERT', 'IMPACT DETECTED (+3s)', '#ff3333');
+                        }
+                        moveTimer = baseMoveSpeed; 
+                    } else {
+                        // MOVE FREE
+                        player.x = nx; 
+                        player.y = ny;
+                        moveTimer = baseMoveSpeed;
+                        wallBumped = false;
+                        
+                        updatePosDisplay();
+                        checkItems();
+                        calculateFOV();
+
+                        if (nx === 0 || nx === GRID_SIZE-1 || ny === 0 || ny === GRID_SIZE-1) {
+                            if(maze[ny][nx] === 0) endGame();
+                        }
+                    }
+                }
+            } else {
+                wallBumped = false; 
+            }
+        }
+        draw();
+        requestAnimationFrame(update);
+    }
+
+    function checkItems() {
+        let index = items.findIndex(i => i.x === player.x && i.y === player.y);
+        if (index !== -1) {
+            let item = items[index];
+            items.splice(index, 1);
+            collectedItems++;
+            if (item.type === 'A') { 
+                isSpeed = true; 
+                speedEnd = Date.now() + 3000; 
+                appendLogMessage('BOOST', 'ADRENALINE INJECTED (SPD x2.5)', '#00FFFF');
+            } 
+            else if (item.type === 'M') { 
+                isStasis = true; 
+                stasisEnd = Date.now() + 5000; 
+                appendLogMessage('PAUSE', 'MUTAGEN STASIS ACTIVATED', '#39FF14');
+            } 
+            else if (item.type === '*') { 
+                showCompass(); 
+                appendLogMessage('SONAR', 'RADAR PING TRIGGERED', '#FFFFFF');
+            }
+        }
+    }
+
+    function showCompass() {
+        let flash = document.getElementById('compass-flash');
+        let angle = Math.atan2(exit.y - player.y, exit.x - player.x) * 180 / Math.PI;
+        // On s'assure que le centrage absolu n'est pas écrasé par la rotation dynamique
+        flash.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
+        flash.style.display = 'block';
+        setTimeout(() => { flash.style.display = 'none'; }, 250);
+    }
+
+    function showPenaltyFloat() {
+        let span = document.createElement('span');
+        span.innerText = "ALERT! +3s";
+        span.style.position = 'absolute';
+        span.style.color = '#ff0000';
+        span.style.fontWeight = 'bold';
+        span.style.pointerEvents = 'none';
+        span.style.left = '50%';
+        span.style.top = '40%';
+        span.style.textShadow = '0 0 5px red';
+        span.style.transform = 'translate(-50%, -50%)';
+        document.getElementById('ui-layer').appendChild(span);
+        let top = 40, op = 1;
+        let anim = setInterval(() => {
+            top -= 1; op -= 0.05;
+            span.style.top = top + '%'; span.style.opacity = op;
+            if(op <= 0) { clearInterval(anim); span.remove(); }
+        }, 50);
+    }
+
+    function draw() {
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const viewSize = 31;
+        const halfView = Math.floor(viewSize / 2);
+        
+        let charW = canvas.width / viewSize;
+        let charH = canvas.height / viewSize;
+
+        // Vert clair/pâle si le Mutagène est actif, sinon vert néon standard
+        let activeWallColor = isStasis ? '#AAFFaa' : '#39FF14';
+
+        for (let y = 0; y < viewSize; y++) {
+            for (let x = 0; x < viewSize; x++) {
+                let mapX = player.x - halfView + x;
+                let mapY = player.y - halfView + y;
+
+                if (mapX >= 0 && mapX < GRID_SIZE && mapY >= 0 && mapY < GRID_SIZE) {
+                    if(explored[mapY][mapX]) {
+                        ctx.fillStyle = visible[mapY][mapX] ? activeWallColor : '#1a331a';
+                        
+                        let charToDraw = ' ';
+                        
+                        if (maze[mapY][mapX] === 1) charToDraw = '█'; 
+                        else charToDraw = '·';
+                        
+                        if (mapX === exit.x && mapY === exit.y) charToDraw = 'O'; 
+                        else if (mapX === player.x && mapY === player.y) {
+                            charToDraw = '●';
+                            ctx.fillStyle = (Date.now() < impactVisualEnd) ? '#FFFFFF' : '#FF3333';
+                        } else {
+                            if (visible[mapY][mapX]) {
+                                let itm = items.find(i => i.x === mapX && i.y === mapY);
+                                if (itm) {
+                                    charToDraw = itm.type;
+                                    if(itm.type === 'A') ctx.fillStyle = '#00FFFF'; 
+                                    else if(itm.type === 'M') ctx.fillStyle = '#39FF14'; 
+                                    else ctx.fillStyle = '#FFFFFF'; 
+                                }
+                            }
+                        }
+
+                        let px = x * charW + charW / 2;
+                        let py = y * charH + charH / 2;
+                        MazeGlyphs.draw(ctx, charToDraw, px, py);
+                    }
+                }
+            }
+        }
+    }
+
+    function endGame() {
+        gameState = "END";
+        let totalTime = (elapsedTime + penaltyTime) / 1000;
+        
+        document.getElementById('final-time').innerText = `EXTRACTION TIME: ${totalTime.toFixed(1)}s`;
+        if(penaltyTime > 0) {
+            document.getElementById('final-penalties').innerText = `(INCLUDES +${(penaltyTime/1000).toFixed(0)}s MUTANT THREAT ALERT)`;
+        } else {
+            document.getElementById('final-penalties').innerText = "AGENT STEALTH : 100%.";
+            document.getElementById('final-penalties').style.color = "#39FF14";
+        }
+
+        let shareTxt = `TCRI_SIM // SEWER_EXT [${seedDateStr}]\n`;
+        shareTxt += `> ATTEMPT: ${attemptCount}\n`;
+        shareTxt += `> AGENT: ${currentAgent}\n`;
+        shareTxt += `> TIME: ${totalTime.toFixed(1)}s\n`;
+        shareTxt += `> BONUS: ${collectedItems}/3`;
+
+        document.getElementById('share-text').value = shareTxt;
+        document.getElementById('end-screen').style.display = 'block';
+    }
+
+    window.copyShare = function() {
+        let copyText = document.getElementById("share-text");
+        copyText.select();
+        copyText.setSelectionRange(0, 99999);
+        navigator.clipboard.writeText(copyText.value);
+        document.execCommand('copy');
+    };
+</script>
+</body>
+</html>
